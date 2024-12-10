@@ -196,7 +196,6 @@ class YOWOv2Lightning(LightningModule):
                 method=MethodAveragePrecision.EveryPointInterpolation,
                 showGraphic=False
             )
-            result = self.val_metric.compute()
         else:
             detections = self.evaluator.PlotPrecisionRecallCurve(
                 boundingBoxes=self.all_boxes_test,
@@ -248,10 +247,12 @@ class YOWOv2Lightning(LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         self.eval_epoch("val")
+        self.all_boxes_val.removeAllBoundingBoxes()
         # self.val_metric.reset()
 
     def on_test_epoch_end(self) -> None:
         self.eval_epoch("test")
+        self.all_boxes_test.removeAllBoundingBoxes()
         # self.test_metric.reset()
 
     def build_scheduler(self, config: LRSChedulerConfig, optimizer: torch.optim.Optimizer) -> dict[str, Any]:
