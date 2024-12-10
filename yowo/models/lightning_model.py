@@ -132,7 +132,7 @@ class YOWOv2Lightning(LightningModule):
 
         # ground truth
         for i in range(len(batch_img_name)):
-            img_size = batch_target[i]['orig_size'][0]
+            img_size = batch_target[i]['orig_size']
             img_name = batch_img_name[i]
             boxes = rescale_bboxes_tensor(
                 bboxes=batch_target[i]['boxes'],
