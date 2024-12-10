@@ -136,8 +136,8 @@ class YOWOv2Lightning(LightningModule):
             img_name = batch_img_name[i]
             boxes = rescale_bboxes_tensor(
                 bboxes=batch_target[i]['boxes'],
-                dest_width=img_size,
-                dest_height=img_size
+                dest_width=img_size[0],
+                dest_height=img_size[1]
             )
             labels = batch_target[i]['labels']
             for box, label in zip(boxes, labels):
@@ -160,12 +160,12 @@ class YOWOv2Lightning(LightningModule):
 
         # predict
         for i in range(len(batch_img_name)):
-            img_size = batch_target[i]['orig_size'][0]
+            img_size = batch_target[i]['orig_size']
             img_name = batch_img_name[i]
             boxes = rescale_bboxes_tensor(
                 bboxes=batch_bboxes[i],
-                dest_width=img_size,
-                dest_height=img_size
+                dest_width=img_size[0],
+                dest_height=img_size[1]
             )
             scores = batch_scores[i]
             labels = batch_labels[i]
