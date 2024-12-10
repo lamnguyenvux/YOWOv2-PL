@@ -248,11 +248,11 @@ class YOWOv2Lightning(LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         self.eval_epoch("val")
-        self.val_metric.reset()
+        # self.val_metric.reset()
 
     def on_test_epoch_end(self) -> None:
         self.eval_epoch("test")
-        self.test_metric.reset()
+        # self.test_metric.reset()
 
     def build_scheduler(self, config: LRSChedulerConfig, optimizer: torch.optim.Optimizer) -> dict[str, Any]:
         config_dict = asdict(config)
