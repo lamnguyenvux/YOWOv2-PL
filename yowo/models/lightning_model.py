@@ -9,6 +9,7 @@ from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from yowo.utils.box_ops import rescale_bboxes_tensor
 from .yowov2.model import YOWO
 from .yowov2.loss import build_criterion
+from yowo.evaluation.calculate_frame_map import BBType, BoundingBox, BoundingBoxes, CoordinatesType, BBFormat, Evaluator, MethodAveragePrecision
 
 from .schemas import (
     LossConfig,
@@ -78,26 +79,9 @@ class YOWOv2Lightning(LightningModule):
             topk_candicate=loss_config.topk_candicate
         )
 
-        self.include_metric_res = [
-            f"mar_{n_det}" for n_det in metric_max_detection_thresholds]
-        self.include_metric_res.extend(["map", "map_50", "map_75"])
-
-        self.val_metric = MeanAveragePrecision(
-            box_format="xyxy",
-            iou_type="bbox",
-            iou_thresholds=metric_iou_thresholds,
-            rec_thresholds=metric_rec_thresholds,
-            max_detection_thresholds=metric_max_detection_thresholds,
-            average="macro"
-        )
-        self.test_metric = MeanAveragePrecision(
-            box_format="xyxy",
-            iou_type="bbox",
-            iou_thresholds=metric_iou_thresholds,
-            rec_thresholds=metric_rec_thresholds,
-            max_detection_thresholds=metric_max_detection_thresholds,
-            average="macro"
-        )
+        self.all_boxes_val = BoundingBoxes()
+        self.all_boxes_test = BoundingBoxes()
+        self.evaluator = Evaluator(dataset="ucf24")
 
         self._device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
@@ -146,47 +130,102 @@ class YOWOv2Lightning(LightningModule):
         batch_scores, batch_labels, batch_bboxes = self.forward(
             batch_video_clip, infer_mode=True)
 
-        # process batch gt
-        gts = list(map(
-            lambda x: {
-                "boxes": rescale_bboxes_tensor(
-                    bboxes=x["boxes"],
-                    dest_width=x["orig_size"][0],
-                    dest_height=x["orig_size"][1]
-                ),
-                "labels": x["labels"].long(),
-            },
-            batch_target
-        ))
+        # ground truth
+        for i in range(len(batch_img_name)):
+            img_size = batch_target[i]['orig_size'][0]
+            img_name = batch_img_name[i]
+            boxes = rescale_bboxes_tensor(
+                bboxes=batch_target[i]['boxes'],
+                dest_width=img_size,
+                dest_height=img_size
+            )
+            labels = batch_target[i]['labels']
+            for box, label in zip(boxes, labels):
+                bb = BoundingBox(
+                    img_name,
+                    x=box[0].item(),
+                    y=box[1].item(),
+                    w=box[2].item(),
+                    h=box[3].item(),
+                    classId=label,
+                    imgSize=img_size,
+                    bbType=BBType.GroundTruth,
+                    typeCoordinates=CoordinatesType.Absolute,
+                    format=BBFormat.XYX2Y2
+                )
+                if mode == "val":
+                    self.all_boxes_val.addBoundingBox(bb)
+                elif mode == "test":
+                    self.all_boxes_test.addBoundingBox(bb)
 
-        # process batch predict
-        preds = []
-        for idx, (scores, labels, bboxes) in enumerate(zip(batch_scores, batch_labels, batch_bboxes)):
-            pred = {
-                "boxes": rescale_bboxes_tensor(
-                    bboxes=bboxes,
-                    dest_width=batch_target[idx]["orig_size"][0],
-                    dest_height=batch_target[idx]["orig_size"][1]
-                ),
-                "scores": scores,
-                "labels": labels.long() + 1,  # int64
-            }
-            preds.append(pred)
-
-        if mode == "val":
-            self.val_metric.update(preds, gts)
-        else:
-            self.test_metric.update(preds, gts)
+        # predict
+        for i in range(len(batch_img_name)):
+            img_size = batch_target[i]['orig_size'][0]
+            img_name = batch_img_name[i]
+            boxes = rescale_bboxes_tensor(
+                bboxes=batch_bboxes[i],
+                dest_width=img_size,
+                dest_height=img_size
+            )
+            scores = batch_scores[i]
+            labels = batch_labels[i]
+            for box, score, label in zip(boxes, scores, labels):
+                bb = BoundingBox(
+                    img_name,
+                    x=box[0].item(),
+                    y=box[1].item(),
+                    w=box[2].item(),
+                    h=box[3].item(),
+                    classId=label + 1,
+                    imgSize=img_size,
+                    bbType=BBType.Detected,
+                    typeCoordinates=CoordinatesType.Absolute,
+                    classConfidence=score.item(),
+                    format=BBFormat.XYX2Y2
+                )
+                if mode == "val":
+                    self.all_boxes_val.addBoundingBox(bb)
+                elif mode == "test":
+                    self.all_boxes_test.addBoundingBox(bb)
 
     def eval_epoch(self, mode: Literal["val", "test"]):
         if mode == "val":
+            detections = self.evaluator.PlotPrecisionRecallCurve(
+                boundingBoxes=self.all_boxes_val,
+                IOUThreshold=0.5,
+                method=MethodAveragePrecision.EveryPointInterpolation,
+                showGraphic=False
+            )
             result = self.val_metric.compute()
         else:
-            result = self.test_metric.compute()
+            detections = self.evaluator.PlotPrecisionRecallCurve(
+                boundingBoxes=self.all_boxes_test,
+                IOUThreshold=0.5,
+                method=MethodAveragePrecision.EveryPointInterpolation,
+                showGraphic=False
+            )
 
-        metrics = {
-            k: v for k, v in result.items() if k in self.include_metric_res
-        }
+        AP_res = []
+        for metricsPerClass in detections:
+
+            # Get metric values per each class
+            cl = metricsPerClass['class']
+            ap = metricsPerClass['AP']
+            precision = metricsPerClass['precision']
+            recall = metricsPerClass['recall']
+            totalPositives = metricsPerClass['total positives']
+            total_TP = metricsPerClass['total TP']
+            total_FP = metricsPerClass['total FP']
+
+            if totalPositives > 0:
+                validClasses = validClasses + 1
+                acc_AP = acc_AP + ap
+                prec = ['%.2f' % p for p in precision]
+                rec = ['%.2f' % r for r in recall]
+                ap_str = "{0:.2f}%".format(ap * 100)
+
+        mAP = acc_AP / validClasses
+        metrics
 
         _sync_dist_log = self.trainer.world_size > 1 and self.trainer.num_devices > 1
         if _sync_dist_log:
@@ -195,9 +234,10 @@ class YOWOv2Lightning(LightningModule):
                 for k, v in metrics.items() if isinstance(v, torch.Tensor)
             }
 
-        self.log_dict(
-            dictionary=metrics,
-            prog_bar=False,
+        self.log(
+            name=f"{mode}_mAP",
+            value=torch.tensor(mAP),
+            prog_bar=True,
             logger=True,
             on_epoch=True,
             sync_dist=_sync_dist_log
