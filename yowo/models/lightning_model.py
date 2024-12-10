@@ -205,7 +205,9 @@ class YOWOv2Lightning(LightningModule):
                 showGraphic=False
             )
 
-        AP_res = []
+        # AP_res = []
+        acc_AP = 0
+        validClasses = 0
         for metricsPerClass in detections:
 
             # Get metric values per each class
@@ -223,9 +225,10 @@ class YOWOv2Lightning(LightningModule):
                 prec = ['%.2f' % p for p in precision]
                 rec = ['%.2f' % r for r in recall]
                 ap_str = "{0:.2f}%".format(ap * 100)
+                # AP_res.append('AP: %s (%s)' % (ap_str, cl))
 
         mAP = acc_AP / validClasses
-        metrics
+        # AP_res.append('mAP: %s' % mAP_str)
 
         _sync_dist_log = self.trainer.world_size > 1 and self.trainer.num_devices > 1
         if _sync_dist_log:
@@ -235,7 +238,7 @@ class YOWOv2Lightning(LightningModule):
             }
 
         self.log(
-            name=f"{mode}_mAP",
+            name=f"frame_map",
             value=torch.tensor(mAP),
             prog_bar=True,
             logger=True,
