@@ -119,12 +119,12 @@ def np_overlap2d(b1, b2):
     return width*height
 
 
-def nms_3d(detections, overlap=0.5):
+def nms_3d(detections, device, overlap=0.5):
     # detections: [(tube1, score1), (tube2, score2)]
     if len(detections) == 0:
-        return torch.tensor([], dtype=torch.int32)
+        return torch.tensor([], dtype=torch.int32, device=device)
     I = torch.argsort(torch.tensor([d[1] for d in detections]))
-    indices = torch.zeros(I.size()[0], dtype=torch.int32)
+    indices = torch.zeros(I.size()[0], dtype=torch.int32, device=device)
     counter = 0
     while I.size()[0] > 0:
         i = I[-1]
@@ -184,14 +184,9 @@ def iou3dt(b1: torch.Tensor, b2: torch.Tensor):
     Returns:
         torch.Tensor: The 3D IoU considering both spatial and temporal overlap.
     """
-    print(f"b1 device: {b1.device}")
-    print(f"b2 device: {b2.device}")
     # Extract the time range
     tmin = torch.max(b1[0, 0], b2[0, 0])
     tmax = torch.min(b1[-1, 0], b2[-1, 0])
-
-    print(f"tmin device: {tmin.device}")
-    print(f"tmax device: {tmax.device}")
 
     # If there's no overlap in the time dimension, return 0
     if tmax <= tmin:
@@ -206,13 +201,8 @@ def iou3dt(b1: torch.Tensor, b2: torch.Tensor):
     b1_t = b1[(b1[:, 0] >= tmin) & (b1[:, 0] <= tmax)]
     b2_t = b2[(b2[:, 0] >= tmin) & (b2[:, 0] <= tmax)]
 
-    print(f"b1_t device: {b1_t.device}")
-    print(f"b2_t device: {b2_t.device}")
-
     # Compute spatial IoU using the previously implemented iou3d
     spatial_iou = iou3d(b1_t, b2_t)
-
-    print(f"spatial_iou device: {spatial_iou.device}")
 
     # Return the adjusted IoU, considering both spatial and temporal factors
     return spatial_iou * (temporal_inter / temporal_union)
@@ -252,7 +242,7 @@ def voc_ap(pr, use_07_metric=False):
     if use_07_metric:
         # 11-point metric
         ap = 0.
-        for t in torch.arange(0., 1.1, 0.1):
+        for t in torch.arange(0., 1.1, 0.1, device=pr.device):
             if torch.sum(rec >= t) == 0:
                 p = 0
             else:
@@ -261,8 +251,10 @@ def voc_ap(pr, use_07_metric=False):
     else:
         # Correct AP calculation
         # First append sentinel values at the end
-        mrec = torch.cat((torch.tensor([0]), rec, torch.tensor([1])))
-        mpre = torch.cat((torch.tensor([0]), prec, torch.tensor([0])))
+        mrec = torch.cat(
+            (torch.tensor([0], device=pr.device), rec, torch.tensor([1], device=pr.device)))
+        mpre = torch.cat(
+            (torch.tensor([0], device=pr.device), prec, torch.tensor([0], device=pr.device)))
 
         # Compute the precision envelope
         for i in range(mpre.size(0) - 1, 0, -1):

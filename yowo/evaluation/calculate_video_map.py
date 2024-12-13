@@ -229,7 +229,7 @@ def link_video_one_class(vid_det, device, bNMS3d=False):
             tube_scores = [torch.mean(b[:, 5]) for b in vres]
             dets = [(tube[t], tube_scores[t]) for t in range(len(tube))]
             # nms for tubes
-            keep = nms_3d(dets, 0.3)  # bug for nms3dt
+            keep = nms_3d(dets, device, 0.3)  # bug for nms3dt
             if keep.size()[0]:
                 vres_keep = [vres[k] for k in keep]
                 # max subarray with penalization -|Lc-L|/Lc
