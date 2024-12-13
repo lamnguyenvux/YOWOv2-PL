@@ -22,7 +22,8 @@ def compute_score_one_class(bbox1, bbox2, w_iou=1.0, w_scores=1.0, w_scores_mul=
     n_bbox1 = bbox1.shape[0]
     n_bbox2 = bbox2.shape[0]
 
-    scores = torch.zeros((n_bbox1, n_bbox2), dtype=torch.float32)
+    scores = torch.zeros((n_bbox1, n_bbox2),
+                         dtype=torch.float32, device=bbox1.device)
     for i in range(n_bbox1):
         box1 = bbox1[i, :4]
         for j in range(n_bbox2):
