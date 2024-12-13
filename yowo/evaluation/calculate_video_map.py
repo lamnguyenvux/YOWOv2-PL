@@ -211,7 +211,7 @@ def np_link_bbxes_between_frames(bbox_list, w_iou=1.0, w_scores=1.0, w_scores_mu
     return res
 
 
-def link_video_one_class(vid_det, bNMS3d=False):
+def link_video_one_class(vid_det, device, bNMS3d=False):
     '''
     linking for one class in a video (in full length)
     vid_det: a list of [frame_index, [bbox cls_score]]
@@ -220,7 +220,7 @@ def link_video_one_class(vid_det, bNMS3d=False):
     '''
     # list of bbox information [[bbox in frame 1], [bbox in frame 2], ...]
     vdets = [vid_det[i][1] for i in range(len(vid_det))]
-    vres = link_bbxes_between_frames(vdets)
+    vres = link_bbxes_between_frames(vdets, device=device)
     if len(vres) != 0:
         if bNMS3d:
             tube = [b[:, :5] for b in vres]
@@ -273,7 +273,7 @@ def video_ap_one_class(gt, pred_videos, device, iou_thresh=0.2, bTemporal=False)
     for pred_v in pred_videos:
         video_index = pred_v[0]
         # [tensor<frame_index, x1,y1,x2,y2, cls_score>]
-        pred_link_v = link_video_one_class(pred_v[1], True)
+        pred_link_v = link_video_one_class(pred_v[1], device, True)
         for tube in pred_link_v:
             pred.append((video_index, tube))
 

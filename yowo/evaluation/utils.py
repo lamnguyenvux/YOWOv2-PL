@@ -187,15 +187,15 @@ def iou3dt(b1: torch.Tensor, b2: torch.Tensor):
     print(f"b1 device: {b1.device}")
     print(f"b2 device: {b2.device}")
     # Extract the time range
-    tmin = torch.max(b1[0, 0], b2[0, 0]).to(b1.device)
-    tmax = torch.min(b1[-1, 0], b2[-1, 0]).to(b1.device)
+    tmin = torch.max(b1[0, 0], b2[0, 0])
+    tmax = torch.min(b1[-1, 0], b2[-1, 0])
 
     print(f"tmin device: {tmin.device}")
     print(f"tmax device: {tmax.device}")
 
     # If there's no overlap in the time dimension, return 0
     if tmax <= tmin:
-        return torch.tensor(0.0).to(b1.device)
+        return torch.tensor(0.0, device=b1.device)
 
     # Calculate the temporal overlap and union
     temporal_inter = tmax - tmin + 1
