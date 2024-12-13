@@ -21,7 +21,7 @@ class VideoMeanAveragePrecision(Metric):
         self.test_file = test_file
         self.add_state("predictions", default=[], dist_reduce_fx="cat")
 
-    def update(self, preds):
+    def update(self, preds, targets=None):
         '''
             preds: list of dict
             {

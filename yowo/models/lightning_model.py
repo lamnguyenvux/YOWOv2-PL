@@ -6,6 +6,7 @@ from lightning.pytorch import LightningModule
 from lightning.pytorch.cli import OptimizerCallable
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
+from yowo.evaluation.metrics import VideoMeanAveragePrecision
 from yowo.utils.box_ops import rescale_bboxes_tensor
 from .yowov2.model import YOWO
 from .yowov2.loss import build_criterion
@@ -13,7 +14,8 @@ from .yowov2.loss import build_criterion
 from .schemas import (
     LossConfig,
     ModelConfig,
-    LRSChedulerConfig
+    LRSChedulerConfig,
+    FileVideoMap
 )
 
 
@@ -27,6 +29,7 @@ class YOWOv2Lightning(LightningModule):
         warmup_config: LRSChedulerConfig | None,
         freeze_backbone_2d: bool = True,
         freeze_backbone_3d: bool = True,
+        # video_map_ann_config: FileVideoMap | None = None,
         metric_iou_thresholds: list[float] | None = [0.25, 0.5, 0.75, 0.95],
         metric_rec_thresholds: list[float] | None = [0.1, 0.3, 0.5, 0.7, 0.9],
         metric_max_detection_thresholds: list[int] | None = [1, 10, 100]
@@ -99,6 +102,15 @@ class YOWOv2Lightning(LightningModule):
             average="macro"
         )
 
+        # self.video_map_ann_config = video_map_ann_config
+        # if video_map_ann_config is not None:
+        self.video_map = VideoMeanAveragePrecision(
+            num_classes=model_config.num_classes,
+            iou_thresholds=metric_iou_thresholds,
+            gt_file="/kaggle/input/ucf24-spatial-temporal-localization-yowo/ucf24/splitfiles/finalAnnots.mat",
+            test_file="/kaggle/input/ucf24-spatial-temporal-localization-yowo/ucf24/splitfiles/testlist01.txt"
+        )
+
         self._device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
 
@@ -139,7 +151,9 @@ class YOWOv2Lightning(LightningModule):
         self.eval_step(batch, mode="val")
 
     def test_step(self, batch, batch_idx) -> torch.Tensor | Mapping[str, Any] | None:
-        self.eval_step(batch, mode="test")
+        # self.eval_step(batch, mode="test")
+        # ADD_NEW
+        self.eval_video_map(batch)
 
     def eval_step(self, batch, mode: Literal["val", "test"]):
         batch_img_name, batch_video_clip, batch_target = batch
@@ -178,11 +192,36 @@ class YOWOv2Lightning(LightningModule):
         else:
             self.test_metric.update(preds, gts)
 
+    # ADD_NEW
+    def eval_video_map(self, batch):
+        batch_img_name, batch_video_clip, batch_target = batch
+        batch_scores, batch_labels, batch_bboxes = self.forward(
+            batch_video_clip, infer_mode=True)
+
+        # process batch predict
+        preds = []
+        for idx, (scores, labels, bboxes) in enumerate(zip(batch_scores, batch_labels, batch_bboxes)):
+            pred = {
+                "img_name": batch_img_name[idx],
+                "boxes": rescale_bboxes_tensor(
+                    bboxes=bboxes,
+                    dest_width=batch_target[idx]["orig_size"][0],
+                    dest_height=batch_target[idx]["orig_size"][1]
+                ),
+                "scores": scores,
+                "labels": labels.long(),  # int64
+            }
+            preds.append(pred)
+
+        self.video_map.update(preds)
+
     def eval_epoch(self, mode: Literal["val", "test"]):
         if mode == "val":
             result = self.val_metric.compute()
         else:
-            result = self.test_metric.compute()
+            # result = self.test_metric.compute()
+            # ADD_NEW
+            result = self.video_map.compute()
 
         metrics = {
             k: v for k, v in result.items() if k in self.include_metric_res
@@ -210,6 +249,8 @@ class YOWOv2Lightning(LightningModule):
     def on_test_epoch_end(self) -> None:
         self.eval_epoch("test")
         self.test_metric.reset()
+        # ADD_NEW
+        self.video_map.reset()
 
     def build_scheduler(self, config: LRSChedulerConfig, optimizer: torch.optim.Optimizer) -> dict[str, Any]:
         config_dict = asdict(config)
