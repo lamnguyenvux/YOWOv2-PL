@@ -15,7 +15,6 @@ from .schemas import (
     LossConfig,
     ModelConfig,
     LRSChedulerConfig,
-    FileVideoMap
 )
 
 
