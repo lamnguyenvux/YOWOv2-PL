@@ -113,7 +113,7 @@ class UCF24_JHMDB21_DataModule(LightningDataModule):
             img_size=self.img_size
         )
 
-        allset = UCF_JHMDB_Dataset(
+        self.allset = UCF_JHMDB_Dataset(
             data_root=self.data_dir,
             dataset=self.dataset,
             split_list=self.split_file.get("test", None),
@@ -124,8 +124,8 @@ class UCF24_JHMDB21_DataModule(LightningDataModule):
             sampling_rate=self.sampling_rate
         )
 
-        self.val_set, self.test_set = random_split(
-            dataset=allset,
+        self.val_set, _ = random_split(
+            dataset=self.allset,
             lengths=[0.3, 0.7]
         )
 
@@ -153,7 +153,7 @@ class UCF24_JHMDB21_DataModule(LightningDataModule):
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
         return DataLoader(
-            dataset=self.test_set,
+            dataset=self.allset,
             batch_size=self.batch_size.get("test", 64),
             collate_fn=self.collate_fn,
             num_workers=self.num_workers,
