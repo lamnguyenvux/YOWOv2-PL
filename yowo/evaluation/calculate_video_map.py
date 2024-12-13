@@ -260,7 +260,7 @@ def np_link_video_one_class(vid_det, bNMS3d=False):
     return vres
 
 
-def video_ap_one_class(gt, pred_videos, iou_thresh=0.2, bTemporal=False):
+def video_ap_one_class(gt, pred_videos, device, iou_thresh=0.2, bTemporal=False):
     '''
     gt: [ video_index, tensor[frame_index, x1,y1,x2,y2] ]
     pred_videos: [ video_index, [ [frame_index, [[x1,y1,x2,y2, score]] ] ] ]
@@ -278,7 +278,7 @@ def video_ap_one_class(gt, pred_videos, iou_thresh=0.2, bTemporal=False):
     argsort_scores = torch.argsort(-torch.tensor(
         [torch.mean(b[:, 5]) for _, b in pred]))
     # precision, recall
-    pr = torch.empty((len(pred)+1, 2), dtype=torch.float32)
+    pr = torch.empty((len(pred)+1, 2), dtype=torch.float32).to(device)
     pr[0, 0] = 1.0
     pr[0, 1] = 0.0
     fn = len(gt)  # sum([len(a[1]) for a in gt])
@@ -300,20 +300,20 @@ def video_ap_one_class(gt, pred_videos, iou_thresh=0.2, bTemporal=False):
             if len(gt_this) > 0:
                 if bTemporal:
                     iou = torch.tensor([iou3dt(g, boxes[:, :5]).item()
-                                       for g in gt_this])
+                                       for g in gt_this]).to(device)
                     # print(iou)
                 else:
                     if boxes.shape[0] > gt_this[0].shape[0]:
                         # in case some frame don't have gt
                         iou = torch.tensor(
-                            [iou3d(g, boxes[int(g[0, 0]-1):int(g[-1, 0]), :5]) for g in gt_this])
+                            [iou3d(g, boxes[int(g[0, 0]-1):int(g[-1, 0]), :5]) for g in gt_this]).to(device)
                     elif boxes.shape[0] < gt_this[0].shape[0]:
                         # in flow case
                         iou = torch.tensor(
-                            [iou3d(g[int(boxes[0, 0]-1):int(boxes[-1, 0]), :], boxes[:, :5]) for g in gt_this])
+                            [iou3d(g[int(boxes[0, 0]-1):int(boxes[-1, 0]), :], boxes[:, :5]) for g in gt_this]).to(device)
                     else:
                         iou = torch.tensor([iou3d(g, boxes[:, :5])
-                                            for g in gt_this])
+                                            for g in gt_this]).to(device)
 
                 if iou.size()[0] > 0:  # on ucf101 if invalid annotation ....
                     argmax = torch.argmax(iou)
@@ -414,7 +414,7 @@ def gt_to_videts(gt_v):
     return res
 
 
-def evaluate_videoAP(gt_videos, all_boxes, num_classes, iou_thresh=0.2, bTemporal=False):
+def evaluate_videoAP(gt_videos, all_boxes, num_classes, device, iou_thresh=0.2, bTemporal=False):
     '''
     gt_videos: {vname:{tubes: [[frame_index, x1,y1,x2,y2]], gt_classes: vlabel}} 
     all_boxes: {imgname:{cls_ind:array[x1,y1,x2,y2, cls_score]}}
@@ -461,7 +461,8 @@ def evaluate_videoAP(gt_videos, all_boxes, num_classes, iou_thresh=0.2, bTempora
         # [ video_index, [[frame_index, x1,y1,x2,y2]] ]
         gt = [g[1:] for g in gt_videos_format if g[0] == cls_ind]
         pred_cls = [p[1:] for p in pred_videos_format if p[0] == cls_ind]
-        ap = video_ap_one_class(gt, pred_cls, iou_thresh, bTemporal)
+        ap = video_ap_one_class(gt, pred_cls, iou_thresh,
+                                bTemporal, device=device)
         ap_all.append(ap)
 
     return torch.stack(ap_all).mean()

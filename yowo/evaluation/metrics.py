@@ -36,7 +36,11 @@ class VideoMeanAveragePrecision(Metric):
     def compute(self):
         # load gt action tubes
         video_testlist = read_test_split(self.test_file)
-        gts = read_tube_gt(video_testlist, self.gt_file)
+        gts = read_tube_gt(
+            video_testlist=video_testlist,
+            gt_file=self.gt_file,
+            device=self.device
+        )
 
         # process predictions
         detected_boxes = {}
@@ -65,13 +69,14 @@ class VideoMeanAveragePrecision(Metric):
                 all_boxes=detected_boxes,
                 num_classes=24,
                 iou_thresh=iou_th,
-                bTemporal=True
+                bTemporal=True,
+                device=self.device
             )
             result[f'map_{int(iou_th*100)}'] = video_map
         return result
 
 
-def read_tube_gt(video_testlist, gt_file: str):
+def read_tube_gt(video_testlist, gt_file: str, device):
     gt_videos = {}
 
     gt_data = loadmat(file_name=gt_file)['annot']
@@ -94,12 +99,8 @@ def read_tube_gt(video_testlist, gt_file: str):
 
                 for k in range(tube_length):
                     gt_boxes = []
-                    try:
-                        gt_boxes.append(
-                            int(tube_start_frame.astype(np.uint16)+k))
-                    except Exception:
-                        print(f"{tube_start_frame = }")
-                        print(f"{k = }")
+                    gt_boxes.append(
+                        int(tube_start_frame.astype(np.uint16)+k))
                     gt_boxes.append(float(tube_data[k][0]))
                     gt_boxes.append(float(tube_data[k][1]))
                     gt_boxes.append(
@@ -109,7 +110,7 @@ def read_tube_gt(video_testlist, gt_file: str):
                     gt_one_tube.append(gt_boxes)
                 # print(f"tube {j} len = {len(gt_one_tube)}")
                 all_gt_boxes.append(torch.tensor(
-                    gt_one_tube, dtype=torch.float32))
+                    gt_one_tube, dtype=torch.float32).to(device))
 
             # print(f"video {video_name} len = {len(all_gt_boxes)}")
 
