@@ -171,7 +171,7 @@ def iou3d(b1, b2):
     return torch.mean(o / areas)
 
 
-def iou3dt(b1, b2):
+def iou3dt(b1: torch.Tensor, b2: torch.Tensor):
     """
     Compute the 3D IoU (Intersection over Union) between two sets of 3D bounding boxes, 
     considering both spatial and temporal dimensions.
@@ -185,12 +185,12 @@ def iou3dt(b1, b2):
         torch.Tensor: The 3D IoU considering both spatial and temporal overlap.
     """
     # Extract the time range
-    tmin = torch.max(b1[0, 0], b2[0, 0])
-    tmax = torch.min(b1[-1, 0], b2[-1, 0])
+    tmin = torch.max(b1[0, 0], b2[0, 0]).to(b1.device)
+    tmax = torch.min(b1[-1, 0], b2[-1, 0]).to(b1.device)
 
     # If there's no overlap in the time dimension, return 0
     if tmax <= tmin:
-        return torch.tensor(0.0)
+        return torch.tensor(0.0).to(b1.device)
 
     # Calculate the temporal overlap and union
     temporal_inter = tmax - tmin + 1
