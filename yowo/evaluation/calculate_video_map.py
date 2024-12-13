@@ -57,7 +57,7 @@ def np_compute_score_one_class(bbox1, bbox2, w_iou=1.0, w_scores=1.0, w_scores_m
     return scores
 
 
-def link_bbxes_between_frames(bbox_list, w_iou=1.0, w_scores=1.0, w_scores_mul=0.5):
+def link_bbxes_between_frames(bbox_list, device, w_iou=1.0, w_scores=1.0, w_scores_mul=0.5):
     """
     Link bounding boxes between frames using PyTorch.
     Args:
@@ -80,7 +80,8 @@ def link_bbxes_between_frames(bbox_list, w_iou=1.0, w_scores=1.0, w_scores_mul=0
         for i in range(nfr):
             if bbox_list[i].size(0) == 0:
                 # Copy the nearest detections to fill in the missing frames
-                ind_dis = torch.abs(torch.tensor(ind_notempty) - i)
+                ind_dis = torch.abs(torch.tensor(
+                    ind_notempty).to(device) - i)
                 nn = torch.argmin(ind_dis)
                 bbox_list[i] = bbox_list[ind_notempty[nn]]
 
@@ -88,15 +89,16 @@ def link_bbxes_between_frames(bbox_list, w_iou=1.0, w_scores=1.0, w_scores_mul=0
     nframes = len(detect)
     res = []
 
-    isempty_vertex = torch.zeros(nframes, dtype=torch.bool)
+    isempty_vertex = torch.zeros(nframes, dtype=torch.bool, device=device)
     edge_scores = [compute_score_one_class(
         detect[i], detect[i + 1], w_iou=w_iou, w_scores=w_scores, w_scores_mul=w_scores_mul) for i in range(nframes - 1)]
     copy_edge_scores = edge_scores
 
     while not torch.any(isempty_vertex):
-        scores = [torch.zeros(d.shape[0], dtype=torch.float32) for d in detect]
+        scores = [torch.zeros(d.shape[0], dtype=torch.float32,
+                              device=device) for d in detect]
         index = [torch.full((d.shape[0],), float(
-            'nan'), dtype=torch.float32) for d in detect]
+            'nan'), dtype=torch.float32, device=device) for d in detect]
 
         # Viterbi algorithm
         for i in range(nframes - 2, -1, -1):
@@ -104,13 +106,14 @@ def link_bbxes_between_frames(bbox_list, w_iou=1.0, w_scores=1.0, w_scores_mul=0
             scores[i] = torch.max(edge_score, dim=1)[0]
             index[i] = torch.argmax(edge_score, dim=1)
 
-        idx = -torch.ones(nframes, dtype=torch.int32)
+        idx = -torch.ones(nframes, dtype=torch.int32, device=device)
         idx[0] = torch.argmax(scores[0])
         for i in range(nframes - 1):
             idx[i + 1] = index[i][idx[i]]
 
-        this = torch.empty((nframes, 6), dtype=torch.float32)
-        this[:, 0] = 1 + torch.arange(nframes, dtype=torch.float32)
+        this = torch.empty((nframes, 6), dtype=torch.float32, device=device)
+        this[:, 0] = 1 + \
+            torch.arange(nframes, dtype=torch.float32, device=device)
         for i in range(nframes):
             j = idx[i]
             iouscore = 0
