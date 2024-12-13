@@ -184,9 +184,14 @@ def iou3dt(b1: torch.Tensor, b2: torch.Tensor):
     Returns:
         torch.Tensor: The 3D IoU considering both spatial and temporal overlap.
     """
+    print(f"b1 device: {b1.device}")
+    print(f"b2 device: {b2.device}")
     # Extract the time range
     tmin = torch.max(b1[0, 0], b2[0, 0]).to(b1.device)
     tmax = torch.min(b1[-1, 0], b2[-1, 0]).to(b1.device)
+
+    print(f"tmin device: {tmin.device}")
+    print(f"tmax device: {tmax.device}")
 
     # If there's no overlap in the time dimension, return 0
     if tmax <= tmin:
@@ -201,8 +206,13 @@ def iou3dt(b1: torch.Tensor, b2: torch.Tensor):
     b1_t = b1[(b1[:, 0] >= tmin) & (b1[:, 0] <= tmax)]
     b2_t = b2[(b2[:, 0] >= tmin) & (b2[:, 0] <= tmax)]
 
+    print(f"b1_t device: {b1_t.device}")
+    print(f"b2_t device: {b2_t.device}")
+
     # Compute spatial IoU using the previously implemented iou3d
     spatial_iou = iou3d(b1_t, b2_t)
+
+    print(f"spatial_iou device: {spatial_iou.device}")
 
     # Return the adjusted IoU, considering both spatial and temporal factors
     return spatial_iou * (temporal_inter / temporal_union)
