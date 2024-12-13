@@ -461,8 +461,13 @@ def evaluate_videoAP(gt_videos, all_boxes, num_classes, device, iou_thresh=0.2, 
         # [ video_index, [[frame_index, x1,y1,x2,y2]] ]
         gt = [g[1:] for g in gt_videos_format if g[0] == cls_ind]
         pred_cls = [p[1:] for p in pred_videos_format if p[0] == cls_ind]
-        ap = video_ap_one_class(gt, pred_cls, iou_thresh,
-                                bTemporal, device=device)
+        ap = video_ap_one_class(
+            gt=gt,
+            pred_videos=pred_cls,
+            device=device,
+            iou_thresh=iou_thresh,
+            bTemporal=bTemporal
+        )
         ap_all.append(ap)
 
     return torch.stack(ap_all).mean()
