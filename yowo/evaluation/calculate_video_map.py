@@ -82,7 +82,7 @@ def link_bbxes_between_frames(bbox_list, device, w_iou=1.0, w_scores=1.0, w_scor
             if bbox_list[i].size(0) == 0:
                 # Copy the nearest detections to fill in the missing frames
                 ind_dis = torch.abs(torch.tensor(
-                    ind_notempty).to(device) - i)
+                    ind_notempty, device=device) - i)
                 nn = torch.argmin(ind_dis)
                 bbox_list[i] = bbox_list[ind_notempty[nn]]
 
@@ -230,7 +230,7 @@ def link_video_one_class(vid_det, device, bNMS3d=False):
             dets = [(tube[t], tube_scores[t]) for t in range(len(tube))]
             # nms for tubes
             keep = nms_3d(dets, device, 0.3)  # bug for nms3dt
-            if keep.size()[0]:
+            if keep.size(0):
                 vres_keep = [vres[k] for k in keep]
                 # max subarray with penalization -|Lc-L|/Lc
                 vres = vres_keep

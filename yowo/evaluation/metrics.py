@@ -114,7 +114,8 @@ def read_tube_gt(video_testlist, gt_file: str, device):
 
             # print(f"video {video_name} len = {len(all_gt_boxes)}")
 
-            v_annotation['gt_classes'] = tube_class
+            v_annotation['gt_classes'] = torch.tensor(
+                tube_class, device=device)
             v_annotation['tubes'] = all_gt_boxes
             gt_videos[str(video_name)] = v_annotation
 
