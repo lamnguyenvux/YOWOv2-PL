@@ -29,13 +29,13 @@ class UCF_JHMDB_Dataset(Dataset):
         self.dataset = dataset
         self.transform = transform
         self.is_train = is_train
-        
+
         self.img_size = img_size
         self.len_clip = len_clip
         self.sampling_rate = sampling_rate
-            
+
         self.split_list = split_list
-        
+
         if self.split_list is None:
             if is_train:
                 self.split_list = "trainlist.txt"
@@ -45,7 +45,7 @@ class UCF_JHMDB_Dataset(Dataset):
         # load data
         with open(os.path.join(data_root, self.split_list), 'r') as file:
             self.file_names = file.readlines()
-        self.num_samples  = len(self.file_names)
+        self.num_samples = len(self.file_names)
 
         if dataset == 'ucf24':
             self.num_classes = 24
@@ -66,15 +66,18 @@ class UCF_JHMDB_Dataset(Dataset):
         assert index <= len(self), 'index range error'
         image_path = self.file_names[index].rstrip()
 
-        img_split = image_path.split('/')  # ex. ['labels', 'Basketball', 'v_Basketball_g08_c01', '00070.txt']
+        # ex. ['labels', 'Basketball', 'v_Basketball_g08_c01', '00070.txt']
+        img_split = image_path.split('/')
         # image name
         img_id = int(img_split[-1][:5])
 
         # path to label
-        label_path = os.path.join(self.data_root, img_split[0], img_split[1], img_split[2], '{:05d}.txt'.format(img_id))
+        label_path = os.path.join(
+            self.data_root, img_split[0], img_split[1], img_split[2], '{:05d}.txt'.format(img_id))
 
         # image folder
-        img_folder = os.path.join(self.data_root, 'rgb-images', img_split[1], img_split[2])
+        img_folder = os.path.join(
+            self.data_root, 'rgb-images', img_split[1], img_split[2])
 
         # frame numbers
         if self.dataset == 'ucf24':
@@ -98,17 +101,22 @@ class UCF_JHMDB_Dataset(Dataset):
             elif img_id_temp > max_num:
                 img_id_temp = max_num
 
+            img_name = '{:05d}.jpg'.format(img_id_temp)
+
             # load a frame
             if self.dataset == 'ucf24':
-                path_tmp = os.path.join(self.data_root, 'rgb-images', img_split[1], img_split[2] ,'{:05d}.jpg'.format(img_id_temp))
+                img_name = '{:05d}.jpg'.format(img_id_temp)
             elif self.dataset == 'jhmdb21':
-                path_tmp = os.path.join(self.data_root, 'rgb-images', img_split[1], img_split[2] ,'{:05d}.png'.format(img_id_temp))
+                img_name = '{:05d}.png'.format(img_id_temp)
+
+            path_tmp = os.path.join(
+                self.data_root, 'rgb-images', img_split[1], img_split[2], img_name)
             frame = Image.open(path_tmp).convert('RGB')
             ow, oh = frame.width, frame.height
 
             video_clip.append(frame)
 
-            frame_id = img_split[1] + '-' +img_split[2] + '-' + img_split[3]
+            frame_id = img_split[1] + '-' + img_split[2] + '-' + img_name
 
         # load an annotation
         if os.path.getsize(label_path):
@@ -120,7 +128,7 @@ class UCF_JHMDB_Dataset(Dataset):
         label = target[..., :1]
         boxes = target[..., 1:]
         target = np.concatenate([boxes, label], axis=-1).reshape(-1, 5)
-            
+
         # transform
         video_clip, target = self.transform(video_clip, target)
         # List [T, 3, H, W] -> [3, T, H, W]
@@ -131,7 +139,7 @@ class UCF_JHMDB_Dataset(Dataset):
             'boxes': target[:, :4].float(),      # [N, 4]
             'labels': target[:, -1].long() - 1,    # [N,]
             'orig_size': [ow, oh],
-            'video_idx':frame_id[:-10]
+            'video_idx': frame_id[:-10]
         }
 
         return frame_id, video_clip, target
@@ -141,19 +149,21 @@ class UCF_JHMDB_Dataset(Dataset):
         assert index <= len(self), 'index range error'
         image_path = self.file_names[index].rstrip()
 
-        img_split = image_path.split('/')  # ex. ['labels', 'Basketball', 'v_Basketball_g08_c01', '00070.txt']
+        # ex. ['labels', 'Basketball', 'v_Basketball_g08_c01', '00070.txt']
+        img_split = image_path.split('/')
         # image name
         img_id = int(img_split[-1][:5])
 
         # path to label
-        label_path = os.path.join(self.data_root, img_split[0], img_split[1], img_split[2], '{:05d}.txt'.format(img_id))
+        label_path = os.path.join(
+            self.data_root, img_split[0], img_split[1], img_split[2], '{:05d}.txt'.format(img_id))
 
         # load an annotation
         target = np.loadtxt(label_path)
         target = target.reshape(-1, 5)
 
         return target
-        
+
 
 # Video Dataset for UCF24 & JHMDB
 class UCF_JHMDB_VIDEO_Dataset(Dataset):
@@ -166,27 +176,29 @@ class UCF_JHMDB_VIDEO_Dataset(Dataset):
         transform=None,
         len_clip=16,
         sampling_rate=1
-        ):
+    ):
         self.data_root = data_root
         self.split_path = split_path
         self.dataset = dataset
         self.transform = transform
-        
+
         self.img_size = img_size
         self.len_clip = len_clip
         self.sampling_rate = sampling_rate
-            
+
         if dataset == 'ucf24':
             self.num_classes = 24
         elif dataset == 'jhmdb21':
             self.num_classes = 21
 
         self.img_folder = os.path.join(self.data_root, self.split_path)
-        
+
         if self.dataset == 'ucf24':
-            self.img_paths = sorted(glob.glob(os.path.join(self.img_folder, '*.jpg')))
+            self.img_paths = sorted(
+                glob.glob(os.path.join(self.img_folder, '*.jpg')))
         elif self.dataset == 'jhmdb21':
-            self.img_paths = sorted(glob.glob(os.path.join(self.img_folder, '*.png')))
+            self.img_paths = sorted(
+                glob.glob(os.path.join(self.img_folder, '*.png')))
 
     # def set_video_data(self, line):
     #     self.line = line
@@ -199,14 +211,11 @@ class UCF_JHMDB_VIDEO_Dataset(Dataset):
     #     elif self.dataset == 'jhmdb21':
     #         self.label_paths = sorted(glob.glob(os.path.join(self.img_folder, '*.png')))
 
-
     def __len__(self):
         return len(self.img_paths)
 
-
     def __getitem__(self, index):
         return self.pull_item(index)
-
 
     def pull_item(self, index):
         image_path = self.img_paths[index]
@@ -217,15 +226,18 @@ class UCF_JHMDB_VIDEO_Dataset(Dataset):
         # for windows:
         # img_split = image_path.split('\\')  # ex. [..., 'Basketball', 'v_Basketball_g08_c01', '00070.txt']
         # for linux
-        img_split = image_path.split('/')  # ex. [..., 'Basketball', 'v_Basketball_g08_c01', '00070.txt']
+        # ex. [..., 'Basketball', 'v_Basketball_g08_c01', '00070.txt']
+        img_split = image_path.split('/')
 
         # image name
         img_id = int(img_split[-1][:5])
         max_num = len(os.listdir(self.img_folder))
         if self.dataset == 'ucf24':
-            img_name = os.path.join(video_class, video_file, '{:05d}.jpg'.format(img_id))
+            img_name = os.path.join(
+                video_class, video_file, '{:05d}.jpg'.format(img_id))
         elif self.dataset == 'jhmdb21':
-            img_name = os.path.join(video_class, video_file, '{:05d}.png'.format(img_id))
+            img_name = os.path.join(
+                video_class, video_file, '{:05d}.png'.format(img_id))
 
         # load video clip
         video_clip = []
@@ -239,9 +251,11 @@ class UCF_JHMDB_VIDEO_Dataset(Dataset):
 
             # load a frame
             if self.dataset == 'ucf24':
-                path_tmp = os.path.join(self.data_root, 'rgb-images', video_class, video_file ,'{:05d}.jpg'.format(img_id_temp))
+                path_tmp = os.path.join(
+                    self.data_root, 'rgb-images', video_class, video_file, '{:05d}.jpg'.format(img_id_temp))
             elif self.dataset == 'jhmdb21':
-                path_tmp = os.path.join(self.data_root, 'rgb-images', video_class, video_file ,'{:05d}.png'.format(img_id_temp))
+                path_tmp = os.path.join(
+                    self.data_root, 'rgb-images', video_class, video_file, '{:05d}.png'.format(img_id_temp))
             frame = Image.open(path_tmp).convert('RGB')
             ow, oh = frame.width, frame.height
 
@@ -277,7 +291,7 @@ if __name__ == '__main__':
         jitter=trans_config['jitter'],
         saturation=trans_config['saturation'],
         exposure=trans_config['exposure']
-        )
+    )
     val_transform = BaseTransform(img_size=img_size)
 
     train_dataset = UCF_JHMDB_Dataset(
@@ -314,9 +328,9 @@ if __name__ == '__main__':
             y1 = int(y1 * H)
             x2 = int(x2 * W)
             y2 = int(y2 * H)
-            key_frame = cv2.rectangle(key_frame, (x1, y1), (x2, y2), (255, 0, 0))
+            key_frame = cv2.rectangle(
+                key_frame, (x1, y1), (x2, y2), (255, 0, 0))
 
         # cv2 show
         cv2.imshow('key frame', key_frame)
         cv2.waitKey(0)
-        
