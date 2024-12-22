@@ -103,6 +103,7 @@ class YOWOv2Lightning(LightningModule):
             "cuda" if torch.cuda.is_available() else "cpu")
 
         self.img_size = model_config.img_size
+        self.multihot = model_config.multi_hot
 
     def forward(self, video_clip: torch.Tensor):
         x = self.model(video_clip)
@@ -170,7 +171,7 @@ class YOWOv2Lightning(LightningModule):
 
         # process batch predict
         preds = []
-        for idx, output in enumerate(zip(outputs)):
+        for idx, output in enumerate(outputs):
             pred = {
                 "boxes": rescale_bboxes_tensor(
                     bboxes=output[:, :4],
@@ -178,7 +179,8 @@ class YOWOv2Lightning(LightningModule):
                     dest_height=batch_target[idx]["orig_size"][1]
                 ),
                 "scores": output[:, 4],
-                "labels": output[:, 5:].long(),  # int64
+                # int64
+                "labels": output[:, 5:].long() if self.multihot else output[:, 5].long(),
             }
             preds.append(pred)
 

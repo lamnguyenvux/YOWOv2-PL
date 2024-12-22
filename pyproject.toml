@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "YOWOv2"
-version = "0.0.1"
-description = "YOWOv2: A Stronger yet Efficient Multi-level Detection Framework for Real-time Spatio-temporal Action Detection"
+version = "0.1.0"
+description = "YOWOv2: A Stronger yet Efficient Multi-level Detection Framework for Real-time Spatio-temporal Action Detection in Pytorch Lightning"
 requires-python = ">=3.10"
 dynamic = ["dependencies"]
 

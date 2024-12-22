@@ -53,7 +53,7 @@ yowo fit -c configs/yowov2_nano_ucf24_jhmdb21.yaml
 
 You can also overwrite paramters in the config file via command in terminal:
 ```
-yowo fit -c configs/yowov2_tiny_ucf24_jhmdb21.yaml \
+yowo fit -c configs/ucf24/yowov2_tiny_ucf24_jhmdb21.yaml \
     --seed_everything=42 \
     --data.data_dir="/kaggle/input/ucf24-spatial-temporal-localization-yowo/ucf24" \
     --data.batch_size.train=64 \
@@ -82,7 +82,7 @@ yowo fit -c configs/yowov2_tiny_ucf24_jhmdb21.yaml \
 By default, Pytorch Lightning uses logger Tensorboard. You can use other loggers as well. Find out more which logger is supported [Loggers](https://lightning.ai/docs/pytorch/stable/extensions/logging.html)
 An example of using WanDB logger
 ```
-yowo fit -c configs/yowov2_tiny_ucf24_jhmdb21.yaml \
+yowo fit -c configs/ucf24/yowov2_tiny_ucf24_jhmdb21.yaml \
     --trainer.logger.class_path="lightning.pytorch.loggers.WandbLogger" \
     --trainer.logger.name="experiment-yowo-tiny_2024-07-22_00:35" \
     --trainer.logger.project="spatial-temporal-action-detection-yowov2" \
@@ -97,7 +97,7 @@ yowo fit -c configs/yowov2_tiny_ucf24_jhmdb21.yaml \
 ## Evaluation
 Validate
 ```
-yowo validate -c configs/yowov2_tiny_ucf24_jhmdb21.yaml \
+yowo validate -c configs/ucf24/yowov2_tiny_ucf24_jhmdb21.yaml \
     --seed_everything=42 \
     --data.data_dir="/kaggle/input/ucf24-spatial-temporal-localization-yowo/ucf24" \
     --data.batch_size.val=64 \
@@ -112,9 +112,9 @@ yowo validate -c configs/yowov2_tiny_ucf24_jhmdb21.yaml \
 ```
 or Test
 ```
-yowo test -c configs/yowov2_tiny_ucf24_jhmdb21.yaml
+yowo test -c configs/ucf24/yowov2_tiny_ucf24_jhmdb21.yaml
 ```
-- `ckpt_path` has to be specified
+*Note* `ckpt_path` has to be specified while testing and validating
 
 ## Dataset
 1. UCF24

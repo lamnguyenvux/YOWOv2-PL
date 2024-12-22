@@ -1,4 +1,3 @@
-lightning
 torch
 torchvision
 opencv-python
@@ -7,3 +6,5 @@ pillow
 lightning[pytorch-extra]
 wandb
 pycocotools
+onnx
+onnxruntime
