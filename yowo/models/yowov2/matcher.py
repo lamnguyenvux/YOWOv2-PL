@@ -3,6 +3,8 @@ import torch.nn.functional as F
 from yowo.utils.box_ops import *
 
 # SimOTA
+
+
 class SimOTA(object):
     def __init__(self, num_classes, center_sampling_radius, topk_candidate):
         self.num_classes = num_classes
@@ -11,22 +13,23 @@ class SimOTA(object):
 
     @torch.no_grad()
     def __call__(
-        self, 
-        fpn_strides, 
-        anchors, # List of [H*W, 2], H*W each scale
-        pred_conf, # [M, 1], M is sum of H*W for each scale
-        pred_cls, # [M, 1]
-        pred_box, # [M, 4]
-        tgt_labels, # [num_instances, ]
-        tgt_bboxes, # [num_instances, 4]
-        ): 
-        # [M, 3]
+        self,
+        fpn_strides,
+        anchors,  # List of [H*W, 2], H*W each scale
+        pred_conf,  # [M, 1], M is sum of H*W for each scale
+        pred_cls,  # [M, 1]
+        pred_box,  # [M, 4]
+        tgt_labels,  # [num_instances, ]
+        tgt_bboxes,  # [num_instances, 4]
+    ):
+        # [H1*W1 + H2*W2 + H3*W3]
         strides = torch.cat([torch.ones_like(anchor_i[:, 0]) * stride_i
-                                for stride_i, anchor_i in zip(fpn_strides, anchors)], dim=-1)
+                             for stride_i, anchor_i in zip(fpn_strides, anchors)], dim=-1)
+
         # List[F, M, 2] -> [M, 2]
-        anchors = torch.cat(anchors, dim=0) # [H1*W1 + H2*W2 + H3*W3, 2]
-        num_anchor = anchors.shape[0]        
-        num_gt = len(tgt_labels) # per image
+        anchors = torch.cat(anchors, dim=0)  # [H1*W1 + H2*W2 + H3*W3, 2]
+        num_anchor = anchors.shape[0]
+        num_gt = len(tgt_labels)  # per image
 
         # positive candidates
         fg_mask, is_in_boxes_and_center = \
@@ -36,7 +39,7 @@ class SimOTA(object):
                 strides,
                 num_anchor,
                 num_gt
-                )
+            )
 
         conf_preds_ = pred_conf[fg_mask]   # [Mp, 1]
         cls_preds_ = pred_cls[fg_mask]   # [Mp, C]
@@ -55,21 +58,21 @@ class SimOTA(object):
         # [N, C] -> [N, Mp, C]
         gt_cls = gt_cls.float().unsqueeze(1).repeat(1, num_in_boxes_anchor, 1)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast("cuda", enabled=False):
             score_preds_ = torch.sqrt(
                 cls_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
                 * conf_preds_.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
-            ) # [N, Mp, C]
+            )  # [N, Mp, C]
             pair_wise_cls_loss = F.binary_cross_entropy(
                 score_preds_, gt_cls, reduction="none"
-            ).sum(-1) # [N, Mp]
+            ).sum(-1)  # [N, Mp]
         del score_preds_
 
         cost = (
             pair_wise_cls_loss
             + 3.0 * pair_wise_ious_loss
             + 100000.0 * (~is_in_boxes_and_center)
-        ) # [N, Mp]
+        )  # [N, Mp]
 
         (
             num_fg,
@@ -82,26 +85,25 @@ class SimOTA(object):
             tgt_labels,
             num_gt,
             fg_mask
-            )
+        )
         del pair_wise_cls_loss, cost, pair_wise_ious, pair_wise_ious_loss
 
         return (
-                gt_matched_classes,
-                fg_mask,
-                pred_ious_this_matching,
-                matched_gt_inds,
-                num_fg,
+            gt_matched_classes,
+            fg_mask,
+            pred_ious_this_matching,
+            matched_gt_inds,
+            num_fg,
         )
-
 
     def get_in_boxes_info(
         self,
         gt_bboxes,   # [N, 4]
         anchors,     # [M, 2]
         strides,     # [M,]
-        num_anchors, # M
+        num_anchors,  # M
         num_gt,      # N
-        ):
+    ):
         # anchor center
         x_centers = anchors[:, 0]
         y_centers = anchors[:, 1]
@@ -111,34 +113,38 @@ class SimOTA(object):
         y_centers = y_centers.unsqueeze(0).repeat(num_gt, 1)
 
         # [N,] -> [N, 1] -> [N, M]
-        gt_bboxes_l = gt_bboxes[:, 0].unsqueeze(1).repeat(1, num_anchors) # x1
-        gt_bboxes_t = gt_bboxes[:, 1].unsqueeze(1).repeat(1, num_anchors) # y1
-        gt_bboxes_r = gt_bboxes[:, 2].unsqueeze(1).repeat(1, num_anchors) # x2
-        gt_bboxes_b = gt_bboxes[:, 3].unsqueeze(1).repeat(1, num_anchors) # y2
+        gt_bboxes_l = gt_bboxes[:, 0].unsqueeze(1).repeat(1, num_anchors)  # x1
+        gt_bboxes_t = gt_bboxes[:, 1].unsqueeze(1).repeat(1, num_anchors)  # y1
+        gt_bboxes_r = gt_bboxes[:, 2].unsqueeze(1).repeat(1, num_anchors)  # x2
+        gt_bboxes_b = gt_bboxes[:, 3].unsqueeze(1).repeat(1, num_anchors)  # y2
 
         b_l = x_centers - gt_bboxes_l
         b_r = gt_bboxes_r - x_centers
         b_t = y_centers - gt_bboxes_t
         b_b = gt_bboxes_b - y_centers
-        bbox_deltas = torch.stack([b_l, b_t, b_r, b_b], 2)
+        bbox_deltas = torch.stack([b_l, b_t, b_r, b_b], 2)  # [N, M, 4]
 
         # check which anchor points (center x, center y) are inside GTs
-        is_in_boxes = bbox_deltas.min(dim=-1).values > 0.0
-        is_in_boxes_all = is_in_boxes.sum(dim=0) > 0
+        is_in_boxes = bbox_deltas.min(dim=-1).values > 0.0  # [N, M]
+        is_in_boxes_all = is_in_boxes.sum(dim=0) > 0  # [M,]
         # in fixed center
         center_radius = self.center_sampling_radius
 
         # [N, 2]
         gt_centers = (gt_bboxes[:, :2] + gt_bboxes[:, 2:]) * 0.5
-        
+
         # [1, M]
         center_radius_ = center_radius * strides.unsqueeze(0)
 
-        # [N, num_anchors, 2]
-        gt_bboxes_l = gt_centers[:, 0].unsqueeze(1).repeat(1, num_anchors) - center_radius_ # x1
-        gt_bboxes_t = gt_centers[:, 1].unsqueeze(1).repeat(1, num_anchors) - center_radius_ # y1
-        gt_bboxes_r = gt_centers[:, 0].unsqueeze(1).repeat(1, num_anchors) + center_radius_ # x2
-        gt_bboxes_b = gt_centers[:, 1].unsqueeze(1).repeat(1, num_anchors) + center_radius_ # y2
+        # [N, M,]
+        gt_bboxes_l = gt_centers[:, 0].unsqueeze(1).repeat(
+            1, num_anchors) - center_radius_  # x1
+        gt_bboxes_t = gt_centers[:, 1].unsqueeze(1).repeat(
+            1, num_anchors) - center_radius_  # y1
+        gt_bboxes_r = gt_centers[:, 0].unsqueeze(1).repeat(
+            1, num_anchors) + center_radius_  # x2
+        gt_bboxes_b = gt_centers[:, 1].unsqueeze(1).repeat(
+            1, num_anchors) + center_radius_  # y2
 
         c_l = x_centers - gt_bboxes_l
         c_r = gt_bboxes_r - x_centers
@@ -152,19 +158,19 @@ class SimOTA(object):
         is_in_boxes_anchor = is_in_boxes_all | is_in_centers_all
 
         is_in_boxes_and_center = (
-            is_in_boxes[:, is_in_boxes_anchor] & is_in_centers[:, is_in_boxes_anchor]
+            is_in_boxes[:, is_in_boxes_anchor] & is_in_centers[:,
+                                                               is_in_boxes_anchor]
         )
         return is_in_boxes_anchor, is_in_boxes_and_center
-    
-    
+
     def dynamic_k_matching(
-        self, 
-        cost, 
-        pair_wise_ious, 
-        gt_classes, 
-        num_gt, 
+        self,
+        cost,
+        pair_wise_ious,
+        gt_classes,
+        num_gt,
         fg_mask
-        ):
+    ):
         # Dynamic K
         # ---------------------------------------------------------------
         matching_matrix = torch.zeros_like(cost, dtype=torch.uint8)
@@ -199,4 +205,3 @@ class SimOTA(object):
             fg_mask_inboxes
         ]
         return num_fg, gt_matched_classes, pred_ious_this_matching, matched_gt_inds
-        

@@ -13,16 +13,17 @@ class SigmoidFocalLoss(object):
         self.gamma = gamma
         self.reduction = reduction
 
-    def __call__(self, logits, targets):      
+    def __call__(self, logits, targets):
         p = torch.sigmoid(logits)
-        ce_loss = F.binary_cross_entropy_with_logits(input=logits, 
-                                                        target=targets, 
-                                                        reduction="none")
+        ce_loss = F.binary_cross_entropy_with_logits(input=logits,
+                                                     target=targets,
+                                                     reduction="none")
         p_t = p * targets + (1.0 - p) * (1.0 - targets)
         loss = ce_loss * ((1.0 - p_t) ** self.gamma)
 
         if self.alpha >= 0:
-            alpha_t = self.alpha * targets + (1.0 - self.alpha) * (1.0 - targets)
+            alpha_t = self.alpha * targets + \
+                (1.0 - self.alpha) * (1.0 - targets)
             loss = alpha_t * loss
 
         if self.reduction == "mean":
@@ -36,7 +37,7 @@ class SigmoidFocalLoss(object):
 
 class Criterion(nn.Module):
     def __init__(
-        self, 
+        self,
         img_size,
         loss_conf_weight,
         loss_cls_weight,
@@ -44,7 +45,7 @@ class Criterion(nn.Module):
         focal_loss,
         center_sampling_radius,
         topk_candicate,
-        num_classes=80, 
+        num_classes=80,
         multi_hot=False
     ):
         super().__init__()
@@ -59,28 +60,28 @@ class Criterion(nn.Module):
         # loss
         self.obj_lossf = nn.BCEWithLogitsLoss(reduction='none')
         self.cls_lossf = nn.BCEWithLogitsLoss(reduction='none')
-            
+
         # matcher
         self.matcher = SimOTA(
             num_classes=num_classes,
             center_sampling_radius=center_sampling_radius,
             topk_candidate=topk_candicate
-            )
+        )
 
     def __call__(
-        self, 
-        outputs: Dict[str, List[torch.Tensor] | List[int]], 
+        self,
+        outputs: Dict[str, List[torch.Tensor] | List[int]],
         targets: List[Dict[str, torch.Tensor] | Any]
-    ):        
+    ):
         """
             M = height * width aka num of anchors
-            
+
             outputs['pred_conf']: List(Tensor) [B, M, 1]
             outputs['pred_cls']: List(Tensor) [B, M, C]
             outputs['pred_box']: List(Tensor) [B, M, 4]
             outputs['anchors']: List(Tensor) [M, 2]
             outputs['strides']: List(Int) [8, 16, 32] output stride
-            
+
             targets: (List) [dict{
                 'boxes': [...], 
                 'labels': [...], 
@@ -88,19 +89,20 @@ class Criterion(nn.Module):
         """
         bs = outputs['pred_cls'][0].shape[0]
         device = outputs['pred_cls'][0].device
-        fpn_strides = outputs['strides']
+        fpn_strides = outputs['strides']  # [8, 16, 32]
+        # list[Tensor] [H*W, 2] # 28*28, 14*14, 7*7
         anchors = outputs['anchors']
         # preds: [B, M, C]
-        conf_preds = torch.cat(outputs['pred_conf'], dim=1) # total M across 3 scales
-        cls_preds = torch.cat(outputs['pred_cls'], dim=1)
-        box_preds = torch.cat(outputs['pred_box'], dim=1)
+        # total M across 3 scales
+        conf_preds = torch.cat(outputs['pred_conf'], dim=1)  # [B, 1024, 1]
+        cls_preds = torch.cat(outputs['pred_cls'], dim=1)  # [B, 1024, 24]
+        box_preds = torch.cat(outputs['pred_box'], dim=1)  # [B, 1024, 4]
 
         # label assignment
         cls_targets = []
         box_targets = []
         conf_targets = []
         fg_masks = []
-
         for batch_idx in range(bs):
             tgt_labels = targets[batch_idx]["labels"].to(device)
             tgt_bboxes = targets[batch_idx]["boxes"].to(device)
@@ -124,21 +126,22 @@ class Criterion(nn.Module):
                     matched_gt_inds,
                     num_fg_img,
                 ) = self.matcher(
-                    fpn_strides = fpn_strides,
-                    anchors = anchors,
-                    pred_conf = conf_preds[batch_idx],
-                    pred_cls = cls_preds[batch_idx], 
-                    pred_box = box_preds[batch_idx],
-                    tgt_labels = tgt_labels,
-                    tgt_bboxes = tgt_bboxes,
-                    )
+                    fpn_strides=fpn_strides,
+                    anchors=anchors,
+                    pred_conf=conf_preds[batch_idx],
+                    pred_cls=cls_preds[batch_idx],
+                    pred_box=box_preds[batch_idx],
+                    tgt_labels=tgt_labels,  # (N,)
+                    tgt_bboxes=tgt_bboxes,  # (N, 4)
+                )
 
                 conf_target = fg_mask.unsqueeze(-1)
                 box_target = tgt_bboxes[matched_gt_inds]
                 if self.multi_hot:
                     cls_target = gt_matched_classes.float()
                 else:
-                    cls_target = F.one_hot(gt_matched_classes.long(), self.num_classes)
+                    cls_target = F.one_hot(
+                        gt_matched_classes.long(), self.num_classes)
                 cls_target = cls_target * pred_ious_this_matching.unsqueeze(-1)
 
             cls_targets.append(cls_target)
@@ -157,9 +160,10 @@ class Criterion(nn.Module):
         num_foregrounds = (num_foregrounds / get_world_size()).clamp(1.0)
 
         # conf loss
-        loss_conf = self.obj_lossf(conf_preds.view(-1, 1), conf_targets.float())
+        loss_conf = self.obj_lossf(
+            conf_preds.view(-1, 1), conf_targets.float())
         loss_conf = loss_conf.sum() / num_foregrounds
-        
+
         # cls loss
         matched_cls_preds = cls_preds.view(-1, self.num_classes)[fg_masks]
         loss_cls = self.cls_lossf(matched_cls_preds, cls_targets)
@@ -175,14 +179,14 @@ class Criterion(nn.Module):
 
         # total loss
         losses = self.loss_conf_weight * loss_conf + \
-                 self.loss_cls_weight * loss_cls + \
-                 self.loss_reg_weight * loss_box
+            self.loss_cls_weight * loss_cls + \
+            self.loss_reg_weight * loss_box
 
         loss_dict = dict(
-                loss_conf = loss_conf,
-                loss_cls = loss_cls,
-                loss_box = loss_box,
-                losses = losses
+            loss_conf=loss_conf,
+            loss_cls=loss_cls,
+            loss_box=loss_box,
+            losses=losses
         )
 
         return loss_dict
@@ -196,7 +200,7 @@ def build_criterion(
     focal_loss,
     center_sampling_radius,
     topk_candicate,
-    num_classes=80, 
+    num_classes=80,
     multi_hot=False
 ):
     return Criterion(
@@ -207,7 +211,6 @@ def build_criterion(
         focal_loss,
         center_sampling_radius,
         topk_candicate,
-        num_classes=num_classes, 
+        num_classes=num_classes,
         multi_hot=multi_hot
     )
-    
