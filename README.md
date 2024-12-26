@@ -48,7 +48,7 @@ pip install .
 Change path to your dataset and other parameters in config file from folder `configs`
 
 ```
-yowo fit -c configs/yowov2_nano_ucf24_jhmdb21.yaml
+yowo fit -c configs/ucf24/yowov2_nano_ucf24_jhmdb21.yaml
 ```
 
 You can also overwrite paramters in the config file via command in terminal:

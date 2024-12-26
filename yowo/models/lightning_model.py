@@ -133,15 +133,13 @@ class YOWOv2Lightning(LightningModule):
             "loss_box": loss_dict["loss_box"]
         }
 
-        _sync_dist_log = self.trainer.world_size > 1 or self.trainer.num_devices > 1
-
         self.log_dict(
             dictionary=out_log,
             prog_bar=True,
             logger=True,
             on_step=True,
             on_epoch=True,
-            sync_dist=_sync_dist_log,
+            rank_zero_only=True,
             batch_size=batch_size
         )
         return total_loss
@@ -199,19 +197,17 @@ class YOWOv2Lightning(LightningModule):
             k: v for k, v in result.items() if k in self.include_metric_res
         }
 
-        _sync_dist_log = self.trainer.world_size > 1 and self.trainer.num_devices > 1
-        if _sync_dist_log:
-            metrics = {
-                k: v.to(self._device)
-                for k, v in metrics.items() if isinstance(v, torch.Tensor)
-            }
+        metrics = {
+            k: v.to(self._device)
+            for k, v in metrics.items() if isinstance(v, torch.Tensor)
+        }
 
         self.log_dict(
             dictionary=metrics,
             prog_bar=False,
             logger=True,
             on_epoch=True,
-            sync_dist=_sync_dist_log
+            sync_dist=self.trainer.num_devices > 1
         )
 
     def on_validation_epoch_end(self) -> None:
