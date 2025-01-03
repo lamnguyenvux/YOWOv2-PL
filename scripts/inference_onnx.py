@@ -2,6 +2,7 @@ import argparse
 import onnxruntime
 import numpy as np
 import cv2
+import time
 
 
 def read_classnames(classname_path):
@@ -46,6 +47,7 @@ if __name__ == "__main__":
 
     CONF_THRESH = args.conf
     CLASSNAMES = read_classnames(args.classname)
+    time_lst = []
 
     ort_session = onnxruntime.InferenceSession(args.checkpoint)
     input_names = ort_session.get_inputs()
@@ -80,9 +82,12 @@ if __name__ == "__main__":
             input_names[0]: inps,
             input_names[1]: confidence
         }
+        start = time.perf_counter()
         outputs = ort_session.run(
             output_names=output_names, input_feed=ort_inputs)[0]
-
+        end = time.perf_counter() - start
+        print("Inference time: ", end)
+        time_lst.append(end)
         if not args.multiclass:
             labels = outputs[:, -1].astype(np.uint64)
             bboxes = rescale_bboxes(
@@ -136,3 +141,5 @@ if __name__ == "__main__":
 
     cap.release()
     cv2.destroyAllWindows()
+
+    print("Avg inference time: ", np.mean(time_lst))

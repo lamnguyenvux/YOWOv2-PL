@@ -5,6 +5,7 @@ import numpy as np
 from yowo.models import YOWOv2PP
 from yowo.utils.box_ops import rescale_bboxes_tensor
 import argparse
+import time
 
 
 def preprocess_input(imgs: list[np.ndarray]):
@@ -48,6 +49,7 @@ if __name__ == "__main__":
     CONF_THRESH = args.conf
     CLASSNAMES = read_classnames(args.classname)
     IS_MULTIHOT = model.model.multi_hot
+    time_lst = []
 
     frames = []
     source = int(args.source) if args.source.isdigit() else args.source
@@ -76,7 +78,11 @@ if __name__ == "__main__":
 
         inps = preprocess_input(frames)
         vis_frame = frames[-1].copy()
+        start = time.perf_counter()
         outputs = model(inps, CONF_THRESH)
+        end = time.perf_counter() - start
+        print("Inference time: ", end)
+        time_lst.append(end)
         # print(inp.shape)
         if not IS_MULTIHOT:
             bboxes = outputs[0][:, :4]
@@ -91,8 +97,9 @@ if __name__ == "__main__":
                 for i in range(len(scores)):
                     cv2.rectangle(vis_frame, ((bboxes[i][0]), bboxes[i][1]),
                                   (bboxes[i][2], bboxes[i][3]), (0, 255, 0), 2)
+                    y_coord = np.clip(bboxes[i][1], a_min=5, a_max=height)
                     cv2.putText(vis_frame, f"{CLASSNAMES[int(labels[i])]}: {scores[i]:.2f}", (
-                        bboxes[i][0], bboxes[i][1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        bboxes[i][0], y_coord - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         else:
             # outputs [x1, y1, x2, y2, cls_1, cls_2, ...]
             cls_scores = outputs[0][:, 4:]
@@ -148,3 +155,5 @@ if __name__ == "__main__":
         writer.release()
     cap.release()
     cv2.destroyAllWindows()
+
+    print("Avg inference time: ", np.mean(time_lst))
