@@ -77,6 +77,8 @@ if __name__ == "__main__":
         del frames[0]
 
         inps = preprocess_input(frames)
+        if args.cuda:
+            inps = inps.cuda()
         vis_frame = frames[-1].copy()
         start = time.perf_counter()
         outputs = model(inps, CONF_THRESH)
